@@ -152,7 +152,7 @@ async function getCenterIDs(pageNumber, city) {
 }
 
 async function startPulling() {
-  const city = prompt('What is your city? (should be written like this : toulouse-metro-france) ');
+  const city = prompt('Quelle est le lieu de votre recherche ? (doit être écrit comme ceci : toulouse-metro-france) ');
   // const city = 'toulouse-metro-france';
   while (true) {
     // Get number of page
