@@ -1,7 +1,8 @@
-
 const https = require("https")
-var player = require('play-sound')(opts = {})
 const prompt = require('prompt-sync')();
+moment = require('moment'); // require
+moment().format(); 
+moment.locale('fr')
 
 const secondesIntervalPulling = 2
 
@@ -10,7 +11,7 @@ const visitMotifID2 = 7005
 const specialityID = 5494
 
 const hostName = 'www.doctolib.fr'
-let isMusicPlaying = false
+const prevResults = []
 
 function intervals(seconds) {
   return new Promise((resolve) => {
@@ -18,23 +19,35 @@ function intervals(seconds) {
   });
 }
 
+
 async function checkAvailability(body, url) {
   var json = JSON.parse(body)
 
   // Have availability
-  if (json.availabilities.length > 0) {
-    if (isMusicPlaying == false) {
-      isMusicPlaying = true
-      player.play('./src/audio/file_example_MP3_700KB.mp3', function (err) {
-        if (err) throw err;
-        console.log("Audio finished");
-        isMusicPlaying = false
+  if (json.availabilities.length > 0 && !prevResults.includes(body)) {
+    prevResults.push(body)
+    let date = ''
+    let horaires = []
+    let ville = json.search_result.link.split('/')[2].charAt(0).toUpperCase() + json.search_result.link.split('/')[2].slice(1)
+    const availables = () => {
+      json.availabilities.forEach((availibility) => {
+        date = JSON.stringify(availibility.date)
+        availibility.slots.forEach((el) => {
+          horaires.push(moment(el.start_date).format('dddd DD MMMM à HH:mm'))
+        })
       })
     }
+    availables()
+    console.log('------------------------------------------------------------------------------------')
+    console.log(` => Vaccination possible sur/dans le : ${ville}`)
+    console.log('')
+    console.log("  - Horaires dispo : ")
+    console.log(horaires)
+    console.log('')
+    console.log("  - Lien Doctolib :")
+    console.log(`    https://${hostName}/${json.search_result.link}`)
+    console.log('------------------------------------------------------------------------------------')
 
-    console.log("url called to get availability", url)
-    console.log("Slot availabled", JSON.stringify(json.availabilities))
-    console.log(`Appointment available on : https://${hostName}/${json.search_result.link}`)
   }
 }
 
@@ -64,7 +77,7 @@ async function request(host, path, method) {
     req.on('error', error => {
       return reject(`Request failed '${error}' on url '${url}'`)
     })
-
+    
     req.end()
   })
 }
@@ -75,7 +88,9 @@ async function requestAvailabilityByCenterID(centerID) {
     const path = `/search_results/${centerID}.json?ref_visit_motive_ids%5B%5D=${visitMotifID1}&ref_visit_motive_ids%5B%5D=${visitMotifID2}&speciality_id=${specialityID}&search_result_format=json&force_max_limit=2`
     buf = await request(hostName, path, 'GET')
     const url = `https://${hostName + path}`
-    return checkAvailability(buf, url)
+
+      return checkAvailability(buf, url)
+
   } catch (err) {
     return
   }
@@ -87,7 +102,7 @@ async function getTotalOfPage(city) {
     buf = await request(hostName, `/vaccination-covid-19/${city}?ref_visit_motive_ids%5B%5D=${visitMotifID1}&ref_visit_motive_ids%5B%5D=${visitMotifID2}`, 'GET')
     const regex = /search_results_total&quot;:\d+/;
     const found = buf.match(regex)
-    if (found === null || found.length == 0) {
+    if (found === null ||found.length == 0) {
       console.error(`[get-total-page] Cannot find any result on '${url}'`)
       return
     }
@@ -117,7 +132,7 @@ async function getCenterIDs(pageNumber, city) {
     buf = await request(hostName, path, 'GET')
     const regex = /id="search-result-\d+/g
     const found = buf.match(regex)
-    if (found === null || found.length == 0) {
+    if (found === null ||found.length == 0) {
       console.error(`[get-center-id] Cannot find any result on '${url}'`)
       return
     }
@@ -137,7 +152,8 @@ async function getCenterIDs(pageNumber, city) {
 }
 
 async function startPulling() {
-  const city = prompt('What is your city? (should be written like this : villeneuve-le-roi) ');
+  // const city = prompt('What is your city? (should be written like this : villeneuve-le-roi) ');
+  const city = 'toulouse';
   while (true) {
     // Get number of page
     const pageTotal = await getTotalOfPage(city)
@@ -155,7 +171,7 @@ async function startPulling() {
     centerIDsArr.forEach(async (centerID) => {
       await requestAvailabilityByCenterID(centerID)
     });
-    console.log("Let's go again")
+    console.log("Recherche relancée")
     await intervals(secondesIntervalPulling)
   }
 }
